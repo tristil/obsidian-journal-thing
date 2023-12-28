@@ -22,21 +22,39 @@ class main {
     return this.tp.date.now(string, offset, this.today, 'YYYY-MM-DD');
   }
 
-  build_file_title(offset) {
+  build_full_file_path(offset) {
     return this.journal_location + '/' + this.file_date("YYYY/MM/YYYY-MM-DD", offset);
   }
 
+  build_sub_file_path(name) {
+    return this.build_full_file_path() + "/" + name
+  }
+
   async create_sub_file(name, content) {
-    await this.tp.file.create_new(content, this.build_file_title() + "/" + name);
+    return await this.tp.file.create_new(content, this.build_sub_file_path(name));
+  }
+
+  async sub_file_exists(name) {
+    return await this.tp.file.exists(this.build_sub_file_path(name) + '.md')
   }
 
   async build_sub_files() {
-    const folder_exists = await this.tp.file.exists(this.build_file_title());
+    const folder_exists = await this.tp.file.exists(this.build_full_file_path());
     if (!folder_exists) {
-      await app.vault.createFolder(this.build_file_title());
-      await this.create_sub_file('Todo', this.tp.file.find_tfile("Todo Template"));
-      await this.create_sub_file('Exercise', this.tp.file.find_tfile("Exercise Template"));
+      await app.vault.createFolder(this.build_full_file_path());
     }
+
+    if (!await this.sub_file_exists('Todo')) {
+      await this.create_sub_file('Todo', this.tp.file.find_tfile("Todo Template"));
+    }
+    if (!await this.sub_file_exists('Done')) {
+      await this.create_sub_file('Done', '');
+    }
+    if (await this.sub_file_exists('Exercise')) {
+      await app.vault.delete(app.vault.getAbstractFileByPath(this.build_sub_file_path('Exercise') + ".md"));
+    }
+
+    await this.create_sub_file('Exercise', this.tp.file.find_tfile("Exercise Template"));
   }
 
   async roll_over_todos() {
@@ -59,17 +77,27 @@ class main {
       todos = todos.concat(file_todos);
     };
 
-    const current_todo_file = await this.tp.file.find_tfile(this.build_file_title() + "/" + 'Todo');
+    const current_todo_file = await this.tp.file.find_tfile(this.build_full_file_path() + "/" + 'Todo');
     await app.vault.append(current_todo_file, todos.join("\n"));
 
     for (const file of todo_files) {
+      const file_content = await app.vault.read(file);
+      const completed_todos = file_content.match(/- \[x\] .*/g);
+      const file_directory = file.path.substring(0, file.path.lastIndexOf('/'));
+
+      if (completed_todos === null) {
+        await app.vault.delete(app.vault.getAbstractFileByPath(file_directory + '/Todo.md'));
+      } else {
+        const current_done_file = await this.tp.file.find_tfile(file_directory + '/Done');
+        await app.vault.append(current_done_file, completed_todos.join("\n"));
+      }
       await app.vault.delete(file);
     }
   }
 
   async build_next_file() {
-    const cutoff_date = this.tp.date.now("YYYY-MM-DD", 1);
-    const full_file_name = this.build_file_title(1) + ".md";
+    const cutoff_date = this.tp.date.now("YYYY-MM-DD", 30);
+    const full_file_name = this.build_full_file_path(1) + ".md";
     const file_exists = await this.tp.file.exists(full_file_name);
 
     if (file_exists) {
@@ -77,7 +105,7 @@ class main {
     }
     if (this.today != cutoff_date) {
       await this.tp.file.create_new(
-        this.tp.file.find_tfile("Daily Note Template"), this.build_file_title(1)
+        this.tp.file.find_tfile("Daily Note Template"), this.build_full_file_path(1)
       );
     }
   }
