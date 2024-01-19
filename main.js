@@ -1,7 +1,11 @@
 class main {
   constructor(tp, journal_location) {
     this.tp = tp;
-    this.today = tp.file.title.substring(0, 10);
+    if (tp.file.title === 'Todo') {
+      this.today = tp.file.path(true).replace(/.*\/(\d{4}-\d{2}-\d{2})\/Todo/, '$1');
+    } else {
+      this.today = tp.file.title;
+    }
     this.journal_location = journal_location;
 
     for (const method of Object.getOwnPropertyNames(main.prototype)) {
@@ -80,33 +84,14 @@ class main {
     const current_todo_file = await this.tp.file.find_tfile(this.build_full_file_path() + "/" + 'Todo');
     await app.vault.append(current_todo_file, todos.join("\n"));
 
-    for (const file of todo_files) {
-      const file_content = await app.vault.read(file);
-      const completed_todos = file_content.match(/- \[x\] .*/g);
-      const file_directory = file.path.substring(0, file.path.lastIndexOf('/'));
+    for (const todo_file of todo_files) {
+      const todo_file_content = await app.vault.read(todo_file);
+      const completed_todos = todo_file_content.match(/- \[x\] .*/g);
+      const file_directory = todo_file.path.substring(0, todo_file.path.lastIndexOf('/'));
 
-      if (completed_todos === null) {
-        await app.vault.delete(app.vault.getAbstractFileByPath(file_directory + '/Todo.md'));
-      } else {
-        const current_done_file = await this.tp.file.find_tfile(file_directory + '/Done');
-        await app.vault.append(current_done_file, completed_todos.join("\n"));
-      }
-      await app.vault.delete(file);
-    }
-  }
-
-  async build_next_file() {
-    const cutoff_date = this.tp.date.now("YYYY-MM-DD", 30);
-    const full_file_name = this.build_full_file_path(1) + ".md";
-    const file_exists = await this.tp.file.exists(full_file_name);
-
-    if (file_exists) {
-      await app.vault.delete(app.vault.getAbstractFileByPath(full_file_name));
-    }
-    if (this.today != cutoff_date) {
-      await this.tp.file.create_new(
-        this.tp.file.find_tfile("Daily Note Template"), this.build_full_file_path(1)
-      );
+      const current_done_file = await this.tp.file.find_tfile(file_directory + '/Done');
+      await app.vault.append(current_done_file, completed_todos.join("\n"));
+      await app.vault.delete(todo_file);
     }
   }
 }
