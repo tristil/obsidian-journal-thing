@@ -110,6 +110,7 @@ class main {
         await app.vault.append(current_done_file, completed_todos.join("\n"));
       }
       await app.vault.delete(todo_file);
+      await this.tp.file.create_new('', todo_file.path.substring(0, todo_file.path.lastIndexOf('.')));
     }
   }
 }
