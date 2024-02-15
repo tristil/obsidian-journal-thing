@@ -39,7 +39,6 @@ class main {
   }
 
   async sub_file_exists(name, offset) {
-    console.log('sub_file_exists: ' + this.build_sub_file_path(name, offset))
     return await this.tp.file.exists(this.build_sub_file_path(name, offset) + '.md')
   }
 
@@ -73,28 +72,33 @@ class main {
     await this.create_sub_file('Exercise', this.tp.file.find_tfile("Exercise Template"), offset);
   }
 
-  async roll_over_todos() {
-    if (this.today > this.tp.date.now()) {
-      return;
-    }
-
-    const todo_files = app.vault.getFiles()
+  get_todo_files() {
+    return app.vault.getFiles()
       .filter(filter => filter.path.startsWith(this.journal_location + '/'))
       .filter(filter => filter.path.endsWith("/Todo.md"))
       .filter(filter => {
         const file_container_date = filter.path.match(/\d{4}-\d{2}-\d{2}/)[0];
-        return file_container_date < this.tp.date.now()
+        return file_container_date <= this.tp.date.now()
       });
+  }
 
+  async get_todos(todo_files) {
     let todos = [];
     for (const file of todo_files) {
       const file_content = await app.vault.read(file);
       const file_todos = file_content.match(/- \[ \] .*/g);
       todos = todos.concat(file_todos);
     };
+    return todos;
+  }
 
-    const current_todo_file = await this.tp.file.find_tfile(this.build_full_file_path() + "/" + 'Todo');
-    await app.vault.append(current_todo_file, todos.join("\n"));
+  async roll_over_todos() {
+    if (this.today > this.tp.date.now()) {
+      return;
+    }
+
+    const todo_files = this.get_todo_files();
+    const todos = await this.get_todos(todo_files);
 
     for (const todo_file of todo_files) {
       const todo_file_content = await app.vault.read(todo_file);
@@ -110,8 +114,14 @@ class main {
         await app.vault.append(current_done_file, completed_todos.join("\n"));
       }
       await app.vault.delete(todo_file);
+
       await this.tp.file.create_new('', todo_file.path.substring(0, todo_file.path.lastIndexOf('.')));
     }
+
+    const current_todo_file = await this.tp.file.find_tfile(this.build_full_file_path() + "/" + 'Todo');
+    await app.vault.delete(app.vault.getAbstractFileByPath(this.build_sub_file_path('Todo') + ".md"));
+    await this.create_sub_file('Todo', this.tp.file.find_tfile("Todo Template"));
+    await app.vault.append(current_todo_file, todos.join("\n"));
   }
 }
 
